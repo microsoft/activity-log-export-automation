@@ -1,5 +1,5 @@
 ﻿#settings
-    $AzureSub="MSInternal"
+    $AzureSubscriptionName="MSInternal"
     $LogRetentionDays = 3
     $ServiceBusRuleId = "/subscriptions/aed7eb10-0c55-4e2f-9789-56a40fe42f16/resourceGroups/CorpLogging/providers/Microsoft.EventHub/namespaces/CorpLoggingHub/AuthorizationRules/RootManageSharedAccessKey"
 
