@@ -2,7 +2,7 @@
 ## Connect Splunk to Azure Activity Log automatically
 
 ### Details
-These two scripts are designed to automated the deployment of the Azure components for configuration of Splunk logging from the Azure Activity Log. It uses the "Azure Monitor Add-on for Splunk":
+These two scripts are designed to automate the deployment of Azure components for configuration of Splunk logging from the Azure Activity Log. It uses the "Azure Monitor Add-on for Splunk":
 
 https://splunkbase.splunk.com/app/3534/
 
