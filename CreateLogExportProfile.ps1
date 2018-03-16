@@ -18,6 +18,7 @@ Write-Host "Authenticating..."
 
     $profile = Get-AzureRmLogProfile -Name default -ErrorAction SilentlyContinue
     if ($profile -ne $null) {
+        Write-Host "Clearing previous profile..."
         #clear any previous profile entry
         Remove-AzureRmLogProfile -Name default
     }

@@ -1,17 +1,16 @@
 ﻿#settings
 $AzureSub="MSInternal"
 $RGName = "CorpLogging"
-$EventHubLocation = "West US 2"
+$Location = "West US 2"
 $tags = @{"Owner" = "Corp"}
 
-function Authenticate {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$true)]
-        $AzureSubscriptionName
-    )
-    Write-Host "Authenticating..."
+#variables
+$namespace = "$($RGName)Hub"
+$AppDisplayName = "$($RGName)App"
+$vaultName = "$($RGName)Vault"
+$secretName = "EHLoggingCredentials"
 
+Write-Host "Authenticating..."
     $ctx=Get-AzureRmContext
     if ($ctx.Account -eq $null) {
         Login-AzureRmAccount
@@ -33,26 +32,10 @@ function Authenticate {
         $token = $ac.AcquireTokenByRefreshToken($token.RefreshToken, "1950a258-227b-4e31-a9cf-717495945fc2", "https://graph.windows.net")
     }
     $aad = Connect-AzureAD -AadAccessToken $token.AccessToken -AccountId $ctx.Account.Id -TenantId $ctx.Tenant.Id -ErrorAction Stop
-    return @{
-        "subid" = $ctx.Subscription.Id;
-        "tenantid" = $ctx.Tenant.Id
-    }
-} 
+    $SubscriptionId = $ctx.Subscription.Id
+    $tenantid = $ctx.Tenant.Id
 
-function CreateEventHub {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$true)]
-        $RGName, 
-        [Parameter(Mandatory=$true)]
-        $Location,
-        [Parameter(Mandatory=$true)]
-        $ResourceTags
-    )
-
-    Write-Host "Setting up Event Hub..."
-    $namespace = "$($RGName)Hub"
-
+Write-Host "Setting up Event Hub..."
     #create Resource Group for Event Hub
     $rg = Get-AzureRmResourceGroup -Name $RGName -ErrorAction SilentlyContinue
 
@@ -64,13 +47,13 @@ function CreateEventHub {
             -ErrorAction Stop
     }
 
-    $ehn = Get-AzureRmEventHubNamespace -ResourceGroupName $RGName -Name $namespace -ErrorAction SilentlyContinue
+    $ehn = Get-AzureRmEventHubNamespace -ResourceGroupName $RGName -Name $Namespace -ErrorAction SilentlyContinue
 
     if ($ehn -eq $null) {
         #create event hub namespace
         $ehn = New-AzureRmEventHubNamespace `
             -ResourceGroupName $RGName `
-            -Name $namespace `
+            -Name $Namespace `
             -Location $Location `
             -SkuName Standard `
             -SkuCapacity 1 `
@@ -79,24 +62,27 @@ function CreateEventHub {
             -ErrorAction Stop
     }
 
+    $ehkey = Get-AzureRmEventHubKey `
+        -ResourceGroupName $RGName `
+        -Namespace $Namespace `
+        -Name "RootManageSharedAccessKey" `
+        -ErrorAction Stop
+
     #get new namespace authorization rule
-    $rule = Get-AzureRmEventHubAuthorizationRule -ResourceGroupName $RGName -Namespace $namespace -ErrorAction Stop
-    return $rule
-}
+    $rule = Get-AzureRmEventHubAuthorizationRule -ResourceGroupName $RGName -Namespace $Namespace -ErrorAction Stop
 
-function SecurityConfig {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$true)]
-        $AppDisplayName, 
-        [Parameter(Mandatory=$true)]
-        $SubscriptionId,
-        [Parameter(Mandatory=$true)]
-        $AzureSubscriptionName
-    )
+Write-Host "Setting up Key vault..."
+    $kv = Get-AzureRmKeyVault -VaultName $vaultName -ResourceGroupName $RGName
+    if ($kv -eq $null) {
+        #Create Azure Key vault
+        $kv = New-AzureRmKeyVault `
+            -VaultName $vaultName `
+            -ResourceGroupName $RGName `
+            -Location $Location `
+            -ErrorAction Stop
+    }
 
-    Write-Host "Setting up Service Principal..."
-
+Write-Host "Setting up Service Principal..."
     $uri = "http://$($AppDisplayName).$($AzureSubscriptionName)"
 
     #setup access rules for new app
@@ -135,6 +121,7 @@ function SecurityConfig {
     if ($app -ne $null) {
         #start over
         AzureAD\Remove-AzureADApplication -ObjectId $app.ObjectId -ErrorAction Stop
+        Start-Sleep 3
     }
 
     #Create AzureAD Application
@@ -156,16 +143,11 @@ function SecurityConfig {
     $addYear = $now.AddYears(1)
     $cred = New-AzureADApplicationPasswordCredential -ObjectId $app.ObjectId -StartDate $now -EndDate $addYear
 
-    #loop to ensure SP creation is complete
-    $newsp=$null
-    while ($newsp -eq $null) {
-        $newsp = Get-AzureADServicePrincipal -ObjectId $sp.ObjectId
-    }
-    Write-Host "Waiting a few seconds to let our new service principal propagate..."
-    #give AAD 10 seconds to propagate the new SP over to the directory for RBAC assignment
-    Start-Sleep 10
+Write-Host "Pausing 60 seconds to let our new service principal propagate..."
+    #give AAD 60 seconds to propagate the new SP over to the directory for RBAC assignment
+    Start-Sleep 60
 
-    Write-Host "Adding RBAC role assignment..."
+Write-Host "Adding RBAC role assignment..."
     #assign role
     New-AzureRmRoleAssignment `
         -ObjectId $sp.ObjectId `
@@ -173,56 +155,17 @@ function SecurityConfig {
         -Scope "/subscriptions/$($SubscriptionId)" `
         -ErrorAction Stop
 
-    return @{
-        "Application" = $app;
-        "ServicePrincipal" = $sp;
-        "SPSecret" = $cred.Value;
-    }
-}
-
-function AddSecretsToVault {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$true)]
-        $RGName, 
-        [Parameter(Mandatory=$true)]
-        $Location,
-        [Parameter(Mandatory=$true)]
-        $EventHubNamespaceName,
-        [Parameter(Mandatory=$true)]
-        $AppId
-    )
-
-    Write-Host "Adding secrets to Key vault..."
-    $secretName = "EHLoggingCredentials"
-    $vaultName = "$($RGName)Vault"
-
-    $kv = Get-AzureRmKeyVault -VaultName $vaultName -ResourceGroupName $RGName
-    if ($kv -eq $null) {
-        #Create Azure Key vault
-        #get and store key
-        $ehkey = Get-AzureRmEventHubKey `
-            -ResourceGroupName $RGName `
-            -Namespace $EventHubNamespaceName `
-            -Name "RootManageSharedAccessKey" `
-            -ErrorAction Stop
-
-        $kv = New-AzureRmKeyVault `
-            -VaultName $vaultName `
-            -ResourceGroupName $RGName `
-            -Location $Location `
-            -ErrorAction Stop
-    }
-
+Write-Host "Adding access to key vault..."
     #grant "Get Secrets" access to Key Vault
     Set-AzureRmKeyVaultAccessPolicy `
         -VaultName $vaultName `
-        -ServicePrincipalName $AppId `
+        -ObjectId $sp.ObjectId `
         -PermissionsToSecrets get `
         -ResourceGroupName $RGName `
         -ErrorAction Stop
 
-
+Write-Host "Adding secrets to Key vault..."
+    #get and store key
     $ss = ConvertTo-SecureString -String $ehkey.PrimaryKey -AsPlainText -Force
 
     $secret = Set-AzureKeyVaultSecret `
@@ -232,55 +175,29 @@ function AddSecretsToVault {
         -ContentType "RootManageSharedAccessKey" `
         -ErrorAction Stop
 
-    return @{
-        "KeyVault" = $kv;
-        "SecretName" = $secretName;
-        "EHSecretVersion" = $secret.Version
-    }
-}
-
-function Main {
-    $ctx = Authenticate `
-        -AzureSubscriptionName $AzureSub `
-        -ErrorAction Stop
-
-        $subid = $ctx.subid
-        $tenantid = $ctx.tenantid
-
-    $eventHub = CreateEventHub `
-        -RGName $RgName `
-        -Location $EventHubLocation `
-        -ResourceTags $tags `
-        -ErrorAction Stop
-
-    $security = SecurityConfig `
-        -AppDisplayName "$($RGName)App" `
-        -SubscriptionId $subid `
-        -AzureSubscriptionName $AzureSub `
-        -ErrorAction Stop
-
-    $vault = AddSecretsToVault `
-        -RGName $RGName `
-        -Location $EventHubLocation `
-        -EventHubNamespaceName "$($RGName)Hub" `
-        -AppId $security.ServicePrincipal.AppId `
-        -ErrorAction Stop
-
-    $output = @{
-        "Name" = "AzureActivityLogs";
-        "SPNTenantID" = $tenantid;
-        "SPNApplicationID" = $Security.ServicePrincipal.AppId;
-        "SPNApplicationKey" = $Security.SPSecret;
-        "eventHubNamespace" = $EventHub.Name;
-        "vaultName" = $vault.KeyVault.VaultName;
-        "secretName" = "EHLoggingCredentials";
-        "secretVersion" = $vault.EHSecretVersion;
-        "ruleid" = $eventHub.id;
-    }
-    return $output
-}
-
-$res = Main
+Write-Host ""
+Write-Host "---"
+Write-Host "Configuration complete"
+Write-Host ""
 
 Write-Host "Auth Rule ID: "
-Write-Host $res.ruleid
+Write-Host $rule.id
+
+Write-Host ""
+Write-Host "****************************"
+Write-Host "*** SPLUNK CONFIGURATION ***"
+Write-Host "****************************"
+Write-Host ""
+Write-Host "Data Input Settings for configuration as explained at https://github.com/Microsoft/AzureMonitorAddonForSplunk/wiki/Configuration-of-Splunk"
+Write-Host ""
+Write-Host "  AZURE MONITOR ACTIVITY LOG"
+Write-Host "  ----------------------------"
+Write-Host "  Name:               Azure Monitor Activity Log"
+Write-Host "  SPNTenantID:       " $ctx.Tenant.Id
+Write-Host "  SPNApplicationId:  " $azureADSP.ApplicationId
+Write-Host "  SPNApplicationKey: " $cred.Value
+Write-Host "  eventHubNamespace: " $ehn.Name
+Write-Host "  vaultName:         " $kv.VaultName
+Write-Host "  secretName:        " $secret.Name
+Write-Host "  secretVersion:     " $secret.Version
+
