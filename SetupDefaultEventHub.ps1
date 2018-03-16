@@ -35,7 +35,7 @@ Write-Host "Authenticating..."
     $SubscriptionId = $ctx.Subscription.Id
     $tenantid = $ctx.Tenant.Id
 
-Write-Host "Setting up Event Hub..."
+Write-Host "Setting up Resource Group..."
     #create Resource Group for Event Hub
     $rg = Get-AzureRmResourceGroup -Name $RGName -ErrorAction SilentlyContinue
 
@@ -47,6 +47,7 @@ Write-Host "Setting up Event Hub..."
             -ErrorAction Stop
     }
 
+Write-Host "Setting up Event Hub..."
     $ehn = Get-AzureRmEventHubNamespace -ResourceGroupName $RGName -Name $Namespace -ErrorAction SilentlyContinue
 
     if ($ehn -eq $null) {
@@ -141,7 +142,7 @@ Write-Host "Setting up Service Principal..."
     # Generate a client secret
     $now = Get-Date
     $addYear = $now.AddYears(1)
-    $cred = New-AzureADApplicationPasswordCredential -ObjectId $app.ObjectId -StartDate $now -EndDate $addYear
+    $cred = New-AzureADApplicationPasswordCredential -ObjectId $app.ObjectId -StartDate $now -EndDate $addYear -CustomKeyIdentifier "Key1"
 
 Write-Host "Pausing 60 seconds to let our new service principal propagate..."
     #give AAD 60 seconds to propagate the new SP over to the directory for RBAC assignment
@@ -180,7 +181,11 @@ Write-Host "---"
 Write-Host "Configuration complete"
 Write-Host ""
 
-Write-Host "Auth Rule ID: "
+Write-Host ""
+Write-Host "****************************"
+Write-Host "*** RuleID for Profiles ***"
+Write-Host "****************************"
+Write-Host ""
 Write-Host $rule.id
 
 Write-Host ""
@@ -194,7 +199,7 @@ Write-Host "  AZURE MONITOR ACTIVITY LOG"
 Write-Host "  ----------------------------"
 Write-Host "  Name:               Azure Monitor Activity Log"
 Write-Host "  SPNTenantID:       " $ctx.Tenant.Id
-Write-Host "  SPNApplicationId:  " $azureADSP.ApplicationId
+Write-Host "  SPNApplicationId:  " $sp.AppId
 Write-Host "  SPNApplicationKey: " $cred.Value
 Write-Host "  eventHubNamespace: " $ehn.Name
 Write-Host "  vaultName:         " $kv.VaultName
