@@ -3,6 +3,7 @@ $AzureSub="MSInternal"
 $RGName = "CorpLogging"
 $Location = "West US 2"
 $tags = @{"Owner" = "Corp"}
+$splunkConnectorName = "AzureActivityLogs"
 
 #variables
 $namespace = "$($RGName)Hub"
@@ -84,7 +85,7 @@ Write-Host "Setting up Key vault..."
     }
 
 Write-Host "Setting up Service Principal..."
-    $uri = "http://$($AppDisplayName).$($AzureSubscriptionName)"
+    $uri = "http://$($AppDisplayName).$($AzureSub)"
 
     #setup access rules for new app
     $appResources = [System.Collections.Generic.List[Microsoft.Open.AzureAD.Model.RequiredResourceAccess]]::New()
@@ -176,6 +177,18 @@ Write-Host "Adding secrets to Key vault..."
         -ContentType "RootManageSharedAccessKey" `
         -ErrorAction Stop
 
+$output = @{
+     "Name" = $splunkConnectorName;
+     "SPNTenantID" = $ctx.Tenant.Id;
+     "SPNApplicationID" = $sp.AppId;
+     "SPNApplicationKey" = $cred.Value;
+     "eventHubNamespace" = $ehn.Name;
+     "vaultName" = $kv.VaultName;
+     "secretName" = $secret.Name;
+     "secretVersion" = $secret.Version;
+     "ruleid" = $rule.id;
+ }
+
 Write-Host ""
 Write-Host "---"
 Write-Host "Configuration complete"
@@ -186,7 +199,7 @@ Write-Host "****************************"
 Write-Host "*** RuleID for Profiles ***"
 Write-Host "****************************"
 Write-Host ""
-Write-Host $rule.id
+Write-Host $output.ruleid
 
 Write-Host ""
 Write-Host "****************************"
@@ -197,12 +210,12 @@ Write-Host "Data Input Settings for configuration as explained at https://github
 Write-Host ""
 Write-Host "  AZURE MONITOR ACTIVITY LOG"
 Write-Host "  ----------------------------"
-Write-Host "  Name:               Azure Monitor Activity Log"
-Write-Host "  SPNTenantID:       " $ctx.Tenant.Id
-Write-Host "  SPNApplicationId:  " $sp.AppId
-Write-Host "  SPNApplicationKey: " $cred.Value
-Write-Host "  eventHubNamespace: " $ehn.Name
-Write-Host "  vaultName:         " $kv.VaultName
-Write-Host "  secretName:        " $secret.Name
-Write-Host "  secretVersion:     " $secret.Version
+Write-Host "  Name:              " $output.Name
+Write-Host "  SPNTenantID:       " $output.SPNTenantID
+Write-Host "  SPNApplicationId:  " $output.SPNApplicationID
+Write-Host "  SPNApplicationKey: " $output.SPNApplicationKey
+Write-Host "  eventHubNamespace: " $output.eventHubNamespace
+Write-Host "  vaultName:         " $output.vaultName
+Write-Host "  secretName:        " $output.secretName
+Write-Host "  secretVersion:     " $output.secretVersion
 
