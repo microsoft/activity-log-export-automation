@@ -2,7 +2,7 @@
 $AzureSub="MSInternal"
 $RGName = "CorpLogging"
 $Location = "West US 2"
-$tags = @{"Owner" = "Corp"}
+$ResourceTags = @{"Owner" = "Corp"}
 $splunkConnectorName = "AzureActivityLogs"
 
 #variables
@@ -61,8 +61,13 @@ Write-Host "Setting up Event Hub..."
             -SkuCapacity 1 `
             -EnableAutoInflate $true `
             -Tag $ResourceTags `
-            -ErrorAction Stop
-    }
+            -ErrorVariable NSError
+
+        if ($NSError) {
+            Write-Host -ForegroundColor Red $NSError.Exception.Response.Content
+			Return
+        }
+	}
 
     $ehkey = Get-AzureRmEventHubKey `
         -ResourceGroupName $RGName `
