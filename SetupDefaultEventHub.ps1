@@ -52,19 +52,21 @@ Write-Host "Setting up Event Hub..."
     $ehn = Get-AzureRmEventHubNamespace -ResourceGroupName $RGName -Name $Namespace -ErrorAction SilentlyContinue
 
     if ($ehn -eq $null) {
-        #create event hub namespace
-        $ehn = New-AzureRmEventHubNamespace `
-            -ResourceGroupName $RGName `
-            -Name $Namespace `
-            -Location $Location `
-            -SkuName Standard `
-            -SkuCapacity 1 `
-            -EnableAutoInflate $true `
-            -Tag $ResourceTags `
-            -ErrorVariable NSError
-
-        if ($NSError) {
-            Write-Host -ForegroundColor Red $NSError.Exception.Response.Content
+        #test if event hub namespace exists
+        $ehntest = Test-AzureRmEventHubName -Namespace $namespace
+        if ($ehntest.NameAvailable -eq $true) { 
+            #create event hub namespace
+            $ehn = New-AzureRmEventHubNamespace `
+                -ResourceGroupName $RGName `
+                -Name $Namespace `
+                -Location $Location `
+                -SkuName Standard `
+                -SkuCapacity 1 `
+                -EnableAutoInflate $true `
+                -Tag $ResourceTags `
+                -ErrorVariable NSError
+        } elseif ($ehntest.NameAvailable -eq $false) {
+            Write-Host -ForegroundColor Red $ehntest.Message
 			Return
         }
 	}
