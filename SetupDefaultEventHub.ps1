@@ -4,12 +4,23 @@ $RGName = "CorpLogging"
 $Location = "West US 2"
 $ResourceTags = @{"Owner" = "Corp"}
 $splunkConnectorName = "AzureActivityLogs"
+#Update the following two variables to use an existing Key Vault, must be in same region and subscription, if not leave set to $null 
+$KVRGName = $null
+$KVName = $null
 
 #variables
 $namespace = "$($RGName)Hub"
 $AppDisplayName = "$($RGName)App"
-$vaultName = "$($RGName)Vault"
 $secretName = "EHLoggingCredentials"
+
+
+if((!$KVRGName) -and (!$KVName)){
+    $vaultName = "$($RGName)Vault"
+    $KVRGName = $RGName
+} elseif(($KVRGName -and ($KVName))) {
+    $vaultName = $KVName
+}
+
 
 Write-Host "Authenticating..."
     $ctx=Get-AzureRmContext
@@ -81,12 +92,12 @@ Write-Host "Setting up Event Hub..."
     $rule = Get-AzureRmEventHubAuthorizationRule -ResourceGroupName $RGName -Namespace $Namespace -ErrorAction Stop
 
 Write-Host "Setting up Key vault..."
-    $kv = Get-AzureRmKeyVault -VaultName $vaultName -ResourceGroupName $RGName
+    $kv = Get-AzureRmKeyVault -VaultName $vaultName -ResourceGroupName $KVRGName
     if ($kv -eq $null) {
         #Create Azure Key vault
         $kv = New-AzureRmKeyVault `
             -VaultName $vaultName `
-            -ResourceGroupName $RGName `
+            -ResourceGroupName $KVRGName `
             -Location $Location `
             -ErrorAction Stop
     }
@@ -170,7 +181,7 @@ Write-Host "Adding access to key vault..."
         -VaultName $vaultName `
         -ObjectId $sp.ObjectId `
         -PermissionsToSecrets get `
-        -ResourceGroupName $RGName `
+        -ResourceGroupName $KVRGName `
         -ErrorAction Stop
 
 Write-Host "Adding secrets to Key vault..."
