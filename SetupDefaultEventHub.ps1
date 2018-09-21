@@ -1,13 +1,14 @@
 ﻿#settings
-$AzureSub="MSInternal"
-$RGName = "CorpLogging"
-$Location = "West US 2"
+$AzureSub="Internal-cocallaw@microsoft.com"
+$RGName = "splunkps01"
+$Location = "South Central US"
 $ResourceTags = @{"Owner" = "Corp"}
 $splunkConnectorName = "AzureActivityLogs"
+
 #Update the following two variables to use an existing Key Vault, must be in same region and subscription.
-#Leave set to $null to create a new Key Vault 
-$KVRGName = $null
-$KVName = $null
+#Leave empty to create a new Key Vault 
+$KVRGName = ""
+$KVName = ""
 
 #variables
 $namespace = "$($RGName)Hub"
