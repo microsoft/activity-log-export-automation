@@ -1,7 +1,7 @@
 ﻿#settings
-$AzureSub="Internal-cocallaw@microsoft.com"
-$RGName = "splunkps01"
-$Location = "South Central US"
+$AzureSub="MyAzureSub"
+$RGName = "MyLoggingRG"
+$Location = "West US 2"
 $ResourceTags = @{"Owner" = "Corp"}
 $splunkConnectorName = "AzureActivityLogs"
 
