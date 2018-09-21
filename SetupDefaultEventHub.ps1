@@ -21,7 +21,7 @@ if((!$KVRGName) -and (!$KVName)){
 }if(($KVRGName -and ($KVName))) {
     $vaultName = $KVName
 }else{
-    Write-Host -ForegroundColor Red "Please check the values for KVRGName and KVName, must be both populated or set to null"
+    Write-Host -ForegroundColor Red "Please check the values for KVRGName and KVName, must be both populated or left empty"
     return
 }
 
