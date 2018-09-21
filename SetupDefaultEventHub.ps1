@@ -1,23 +1,39 @@
 ﻿#settings
-$AzureSub="MSInternal"
-$RGName = "CorpLogging"
+$AzureSub="MyAzureSub"
+$RGName = "MyLoggingRG"
 $Location = "West US 2"
 $ResourceTags = @{"Owner" = "Corp"}
 $splunkConnectorName = "AzureActivityLogs"
 
+#Update the following two variables to use an existing Key Vault, must be in same region and subscription.
+#Leave empty to create a new Key Vault 
+$KVRGName = ""
+$KVName = ""
+
 #variables
 $namespace = "$($RGName)Hub"
 $AppDisplayName = "$($RGName)App"
-$vaultName = "$($RGName)Vault"
 $secretName = "EHLoggingCredentials"
+
+
+if((!$KVRGName) -and (!$KVName)){
+    $vaultName = "$($RGName)Vault"
+    $KVRGName = $RGName
+}elseif(($KVRGName -and ($KVName))) {
+    $vaultName = $KVName
+}else{
+    Write-Host -ForegroundColor Red "Please check the values for KVRGName and KVName, must be both populated or left empty"
+    return
+}
+
 
 Write-Host "Authenticating..."
     $ctx=Get-AzureRmContext
     if ($ctx.Account -eq $null) {
         Login-AzureRmAccount
     }
-    if ($ctx.SubscriptionName -ne $AzureSubscriptionName) {
-        Set-AzureRmContext -SubscriptionName $AzureSubscriptionName
+    if ($ctx.SubscriptionName -ne $AzureSub) {
+        Set-AzureRmContext -SubscriptionName $AzureSub
     }
     $ctx=Get-AzureRmContext  -ErrorAction Stop
 
@@ -81,18 +97,18 @@ Write-Host "Setting up Event Hub..."
     $rule = Get-AzureRmEventHubAuthorizationRule -ResourceGroupName $RGName -Namespace $Namespace -ErrorAction Stop
 
 Write-Host "Setting up Key vault..."
-    $kv = Get-AzureRmKeyVault -VaultName $vaultName -ResourceGroupName $RGName
+    $kv = Get-AzureRmKeyVault -VaultName $vaultName -ResourceGroupName $KVRGName
     if ($kv -eq $null) {
         #Create Azure Key vault
         $kv = New-AzureRmKeyVault `
             -VaultName $vaultName `
-            -ResourceGroupName $RGName `
+            -ResourceGroupName $KVRGName `
             -Location $Location `
             -ErrorAction Stop
     }
 
 Write-Host "Setting up Service Principal..."
-    $uri = "http://$($AppDisplayName).$($AzureSub)"
+    $uri = "http://$($AppDisplayName).$((Get-AzureRmSubscription -SubscriptionName $AzureSub).TenantId[0])"
 
     #setup access rules for new app
     $appResources = [System.Collections.Generic.List[Microsoft.Open.AzureAD.Model.RequiredResourceAccess]]::New()
@@ -170,7 +186,7 @@ Write-Host "Adding access to key vault..."
         -VaultName $vaultName `
         -ObjectId $sp.ObjectId `
         -PermissionsToSecrets get `
-        -ResourceGroupName $RGName `
+        -ResourceGroupName $KVRGName `
         -ErrorAction Stop
 
 Write-Host "Adding secrets to Key vault..."
