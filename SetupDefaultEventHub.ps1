@@ -19,7 +19,7 @@ $secretName = "EHLoggingCredentials"
 if((!$KVRGName) -and (!$KVName)){
     $vaultName = "$($RGName)Vault"
     $KVRGName = $RGName
-}if(($KVRGName -and ($KVName))) {
+}elseif(($KVRGName -and ($KVName))) {
     $vaultName = $KVName
 }else{
     Write-Host -ForegroundColor Red "Please check the values for KVRGName and KVName, must be both populated or left empty"
@@ -32,8 +32,8 @@ Write-Host "Authenticating..."
     if ($ctx.Account -eq $null) {
         Login-AzureRmAccount
     }
-    if ($ctx.SubscriptionName -ne $AzureSubscriptionName) {
-        Set-AzureRmContext -SubscriptionName $AzureSubscriptionName
+    if ($ctx.SubscriptionName -ne $AzureSub) {
+        Set-AzureRmContext -SubscriptionName $AzureSub
     }
     $ctx=Get-AzureRmContext  -ErrorAction Stop
 
@@ -108,7 +108,7 @@ Write-Host "Setting up Key vault..."
     }
 
 Write-Host "Setting up Service Principal..."
-    $uri = "http://$($AppDisplayName).$($AzureSub)"
+    $uri = "http://$($AppDisplayName).$((Get-AzureRmSubscription -SubscriptionName $AzureSub).TenantId[0])"
 
     #setup access rules for new app
     $appResources = [System.Collections.Generic.List[Microsoft.Open.AzureAD.Model.RequiredResourceAccess]]::New()
