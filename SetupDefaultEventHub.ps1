@@ -16,8 +16,8 @@ Write-Host "Authenticating..."
     if ($ctx.Account -eq $null) {
         Login-AzureRmAccount
     }
-    if ($ctx.SubscriptionName -ne $AzureSubscriptionName) {
-        Set-AzureRmContext -SubscriptionName $AzureSubscriptionName
+    if ($ctx.SubscriptionName -ne $AzureSub) {
+        Set-AzureRmContext -SubscriptionName $AzureSub
     }
     $ctx=Get-AzureRmContext  -ErrorAction Stop
 
@@ -92,8 +92,8 @@ Write-Host "Setting up Key vault..."
     }
 
 Write-Host "Setting up Service Principal..."
-    $uri = "http://$($AppDisplayName).$($AzureSub)"
-
+    $uri = "http://$($AppDisplayName).$((Get-AzureRmSubscription -SubscriptionName $AzureSub).TenantId[0])"
+    
     #setup access rules for new app
     $appResources = [System.Collections.Generic.List[Microsoft.Open.AzureAD.Model.RequiredResourceAccess]]::New()
  
