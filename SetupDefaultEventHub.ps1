@@ -92,7 +92,7 @@ Write-Host "Setting up Key vault..."
     }
 
 Write-Host "Setting up Service Principal..."
-    $uri = "http://$($AppDisplayName).$((Get-AzureRmSubscription -SubscriptionName $AzureSub).TenantId[0])"
+    $uri = "http://$($AppDisplayName).$((Get-AzureRmSubscription -SubscriptionName $AzureSub).TenantId)"
     
     #setup access rules for new app
     $appResources = [System.Collections.Generic.List[Microsoft.Open.AzureAD.Model.RequiredResourceAccess]]::New()
