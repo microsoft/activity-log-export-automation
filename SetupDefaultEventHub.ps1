@@ -1,15 +1,33 @@
 ﻿#settings
-$AzureSub="MSInternal"
-$RGName = "CorpLogging"
-$Location = "West US 2"
+$AzureSub="MyAzureSub"
+$RGName = "MyLoggingRG"
+$Location = "South Central US"
 $ResourceTags = @{"Owner" = "Corp"}
 $splunkConnectorName = "AzureActivityLogs"
+
+#Update the following two variables to use an existing Key Vault, must be in same region and subscription.
+#Leave set to $null to create a new Key Vault
+$KVRGName = $null
+$KVName = $null
+
+#################################################################
+# Don't modify anything below unless you know what you're doing.
+#################################################################
 
 #variables
 $namespace = "$($RGName)Hub"
 $AppDisplayName = "$($RGName)App"
-$vaultName = "$($RGName)Vault"
 $secretName = "EHLoggingCredentials"
+
+if((!$KVRGName) -and (!$KVName)){
+    $vaultName = "$($RGName)Vault"
+    $KVRGName = $RGName
+}elseif(($KVRGName -and ($KVName))) {
+    $vaultName = $KVName
+}else{
+    Write-Host -ForegroundColor Red "Please check the values for KVRGName and KVName, must be both populated or left empty"
+    return
+}
 
 Write-Host "Authenticating..."
     $ctx=Get-AzureRmContext
@@ -66,7 +84,7 @@ Write-Host "Setting up Event Hub..."
                 -Tag $ResourceTags `
                 -ErrorVariable NSError
         } elseif ($ehntest.NameAvailable -eq $false) {
-            Write-Host -ForegroundColor Red $ehntest.Message
+            Write-Host -F Red $ehntest.Message
 			Return
         }
 	}
@@ -81,12 +99,21 @@ Write-Host "Setting up Event Hub..."
     $rule = Get-AzureRmEventHubAuthorizationRule -ResourceGroupName $RGName -Namespace $Namespace -ErrorAction Stop
 
 Write-Host "Setting up Key vault..."
-    $kv = Get-AzureRmKeyVault -VaultName $vaultName -ResourceGroupName $RGName
-    if ($kv -eq $null) {
+    $kv = Get-AzureRmKeyVault -VaultName $vaultName -ResourceGroupName $KVRGName
+    if ($kv) {
+        #Check location
+        if ($kv.Location -eq $Location) {
+            Write-Host ("Using Existing Key Vault {0}" -f $kv.VaultName)  
+        }elseif($kv.Location -ne $Location){
+            Write-host -F Red ("Unable to use existing Key Vault {0},must be located in {1} region" -f $kv.VaultName, $Location)
+            Return
+        }
+    }
+    elseif (!$kv) {
         #Create Azure Key vault
         $kv = New-AzureRmKeyVault `
             -VaultName $vaultName `
-            -ResourceGroupName $RGName `
+            -ResourceGroupName $KVRGName `
             -Location $Location `
             -ErrorAction Stop
     }
@@ -170,7 +197,7 @@ Write-Host "Adding access to key vault..."
         -VaultName $vaultName `
         -ObjectId $sp.ObjectId `
         -PermissionsToSecrets get `
-        -ResourceGroupName $RGName `
+        -ResourceGroupName $KVRGName `
         -ErrorAction Stop
 
 Write-Host "Adding secrets to Key vault..."
